@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>DIM10 DEVILOVER - DEWA</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:Arial}
+body{background:#1a1a1a;display:flex;flex-direction:column;align-items:center;padding:10px;color:#fff}
+.top{background:#fff;color:#000;border:3px solid #000;border-radius:12px;width:100%;max-width:500px;padding:10px 15px;display:flex;justify-content:space-between;font-weight:900;font-size:18px}
+.modes{display:flex;gap:8px;width:100%;max-width:500px;margin:10px 0}
+.mode{flex:1;padding:10px;border:2px solid #000;border-radius:10px;font-weight:800;text-align:center;background:#fff;color:#000}
+.mode.active{background:#facc15}
+.wrap{background:#fff;border:3px solid #000;border-radius:16px;padding:8px;width:100%;max-width:500px}
+.board{display:grid;grid-template-columns:repeat(8,1fr);aspect-ratio:1;border:2px solid #000;border-radius:8px;overflow:hidden}
+.cell{display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative}
+.light{background:#f5e6c8}.dark{background:#c19a6b}
+.selected{outline:4px solid #facc15;outline-offset:-4px;z-index:1}
+.possible::after{content:'';width:20px;height:20px;background:#22c55e;border-radius:50%;position:absolute;opacity:0.8}
+.piece{width:85%;height:85%;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;border:2px solid #000}
+.white{background:#fff;color:#000}.black{background:#111;color:#fff;border-color:#fff}
+.status{background:#fff;color:#000;border:3px solid #000;border-radius:12px;width:100%;max-width:500px;padding:12px;margin-top:12px;text-align:center;font-weight:800}
+</style>
+</head>
+<body>
+<div class="top"><span>DIM10 DEVILOVER👑</span><span>♚</span></div>
+<div class="modes">
+<div class="mode" id="m-vs" onclick="setM('VS')">VS TEMEN</div>
+<div class="mode" id="m-cupu" onclick="setM('CUPU')">CUPU</div>
+<div class="mode" id="m-jago" onclick="setM('JAGO')">JAGO</div>
+<div class="mode active" id="m-dewa" onclick="setM('DEWA')">DEWA</div>
+</div>
+<div class="wrap"><div class="board" id="board"></div></div>
+<div class="status" id="status">Giliran: PUTIH</div>
+
+<script>
+let mode='DEWA', board=[], sel=null, turn='w', over=false, last=null;
+const sym={p:'●',n:'♞',b:'♝',r:'♜',q:'♛',k:'♚'};
+const val={p:10,n:30,b:33,r:50,q:90,k:900};
+
+function init(){
+ board=[
+ ['r','n','b','q','k','b','n','r'],
+ ['p','p','p','p','p','p','p','p'],
+ ['','','','','','','',''],
+ ['','','','','','','',''],
+ ['','','','','','','',''],
+ ['','','','','','','',''],
+ ['P','P','P','P','P','P','P','P'],
+ ['R','N','B','Q','K','B','N','R']];
+ turn='w';sel=null;over=false;render();
+}
+function render(){
+ let b=document.getElementById('board');b.innerHTML='';
+ for(let r=0;r<8;r++)for(let c=0;c<8;c++){
+  let cell=document.createElement('div');
+  cell.className='cell '+((r+c)%2==0?'light':'dark');
+  if(sel && sel.r==r && sel.c==c) cell.classList.add('selected');
+  if(sel && valid(sel.r,sel.c,r,c)) cell.classList.add('possible');
+  let p=board[r][c];
+  if(p){
+   let d=document.createElement('div');
+   d.className='piece '+(p==p.toUpperCase()?'white':'black');
+   d.textContent=sym[p.toLowerCase()]||'●';
+   cell.appendChild(d);
+  }
+  cell.onclick=()=>click(r,c);
+  b.appendChild(cell);
+ }
+ document.getElementById('status').textContent=over?'GAME OVER - '+ (turn=='w'?'HITAM MENANG':'PUTIH MENANG') :'Giliran: '+(turn=='w'?'PUTIH':'HITAM')+(mode!='VS'&&turn=='b'?' - Bot mikir...':'');
+}
+function click(r,c){
+ if(over) return;
+ let p=board[r][c];
+ if(sel){
+  if(valid(sel.r,sel.c,r,c)){
+   move(sel.r,sel.c,r,c); sel=null; render();
+   if(!over && mode!='VS' && turn=='b') setTimeout(bot,500);
+   return;
+  } else sel=null;
+ }
+ if(p && ((turn=='w' && p==p.toUpperCase())||(turn=='b' && p!=p.toUpperCase()))){
+  sel={r,c}; render();
+ }
+}
+function valid(fr,fc,tr,tc){
+ let p=board[fr][fc]; if(!p) return false;
+ let t=board[tr][tc]; if(t && same(p,t)) return false;
+ let dr=tr-fr, dc=tc-fc, ad=Math.abs(dr), ac=Math.abs(dc);
+ let isW=p==p.toUpperCase(), low=p.toLowerCase();
+ if(low=='p'){
+  let dir=isW?-1:1, sr=isW?6:1;
+  if(dc==0 &&!t){ if(dr==dir) return true; if(fr==sr && dr==2*dir &&!board[fr+dir][fc]) return true; }
+  if(ac==1 && dr==dir && t &&!same(p,t)) return true;
+  return false;
+ }
+ if(low=='r') return (dr==0||dc==0)&&clear(fr,fc,tr,tc);
+ if(low=='b') return ad==ac&&clear(fr,fc,tr,tc);
+ if(low=='q') return (dr==0||dc==0||ad==ac)&&clear(fr,fc,tr,tc);
+ if(low=='n') return (ad==2&&ac==1)||(ad==1&&ac==2);
+ if(low=='k') return ad<=1&&ac<=1;
+ return false;
+}
+function clear(fr,fc,tr,tc){
+ let dr=Math.sign(tr-fr), dc=Math.sign(tc-fc), r=fr+dr,c=fc+dc;
+ while(r!=tr||c!=tc){ if(board[r][c]!='') return false; r+=dr;c+=dc; } return true;
+}
+function same(a,b){ return (a==a.toUpperCase())==(b==b.toUpperCase()); }
+function move(fr,fc,tr,tc){
+ let p=board[fr][fc];
+ if(p.toLowerCase()=='p'&&(tr==0||tr==7)) p=p==p.toUpperCase()?'Q':'q';
+ board[tr][tc]=p; board[fr][fc]=''; turn=turn=='w'?'b':'w';
+}
+function allMoves(col){
+ let m=[];
+ for(let r=0;r<8;r++)for(let c=0;c<8;c++){
+  let p=board[r][c]; if(!p) continue;
+  if((col=='w'&&p!=p.toUpperCase())||(col=='b'&&p==p.toUpperCase())) continue;
+  for(let tr=0;tr<8;tr++)for(let tc=0;tc<8;tc++) if(valid(r,c,tr,tc)) m.push({fr:r,fc:c,tr,tc,cap:board[tr][tc]});
+ } return m;
+}
+function evalB(){
+ let s=0;
+ for(let r=0;r<8;r++)for(let c=0;c<8;c++){
+  let p=board[r][c]; if(!p) continue;
+  let v=val[p.toLowerCase()]||0;
+  if(p==p.toUpperCase()) s+=v; else s-=v;
+ } return s;
+}
+function mini(d,isMax,a,b){
+ if(d==0) return evalB();
+ let moves=allMoves(isMax?'w':'b'); if(moves.length==0) return evalB();
+ let best=isMax?-9999:9999;
+ for(let m of moves){
+  let cap=board[m.tr][m.tc], mov=board[m.fr][m.fc];
+  board[m.tr][m.tc]=mov; board[m.fr][m.fc]='';
+  let sc=mini(d-1,!isMax,a,b);
+  board[m.fr][m.fc]=mov; board[m.tr][m.tc]=cap;
+  if(isMax){ best=Math.max(best,sc); a=Math.max(a,best); } else { best=Math.min(best,sc); b=Math.min(b,best); }
+  if(b<=a) break;
+ } return best;
+}
+function bot(){
+ if(over) return;
+ let moves=allMoves('b'); if(moves.length==0){ over=true; render(); return; }
+ let chosen;
+ if(mode=='CUPU'){ chosen=moves[Math.floor(Math.random()*moves.length)]; }
+ else if(mode=='JAGO'){
+  moves.sort((x,y)=>(val[y.cap?.toLowerCase()]||0)-(val[x.cap?.toLowerCase()]||0));
+  chosen=moves[Math.floor(Math.random()*Math.min(3,moves.length))];
+ } else {
+  let scored=moves.map(m=>{
+   let cap=board[m.tr][m.tc], mov=board[m.fr][m.fc];
+   board[m.tr][m.tc]=mov; board[m.fr][m.fc]='';
+   let sc=mini(2,true,-9999,9999);
+   board[m.fr][m.fc]=mov; board[m.tr][m.tc]=cap;
+   return {...m,sc};
+  });
+  scored.sort((x,y)=>x.sc-y.sc);
+  chosen=scored[0];
+ }
+ if(chosen){ move(chosen.fr,chosen.fc,chosen.tr,chosen.tc); render(); if(allMoves('w').length==0||allMoves('b').length==0) over=true; }
+}
+function setM(m){
+ mode=m;
+ document.querySelectorAll('.mode').forEach(x=>x.classList.remove('active'));
+ document.getElementById('m-'+m.toLowerCase()).classList.add('active');
+ init();
+}
+init();
+</script>
+</body>
+</html>
